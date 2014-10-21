@@ -115,6 +115,10 @@ class scorm_download_scores_report extends scorm_default_report {
 			echo $OUTPUT->single_button(new moodle_url($PAGE->url,array('download'=>'Excel')),get_string('downloadexcel'));
 			echo $OUTPUT->single_button(new moodle_url($PAGE->url,array('download'=>'CSV')),get_string('downloadcsv','scormreport_download_scores'));
 		} else {
+			$coursecontext = $this->coursecontext = context_course::instance($course->id);
+			$shortname = format_string($course->shortname, true, array('context' => $coursecontext));
+			$this->filename = clean_filename("$shortname ".format_string($scorm->name, true));
+
 			$this->scorm = $scorm;
 			$this->download = $download;
 			$this->get_data($scorm,$cm,$course);
@@ -172,9 +176,6 @@ class scorm_download_scores_report extends scorm_default_report {
 			return;
 		}
 
-		$shortname = format_string($course->shortname, true, array('context' => $coursecontext));
-		$this->filename = clean_filename("$shortname ".format_string($scorm->name, true));
-
 		$params = array();
 		list($usql, $params) = $DB->get_in_or_equal($allowedlist, SQL_PARAMS_NAMED);
 						// Construct the SQL
@@ -187,6 +188,8 @@ class scorm_download_scores_report extends scorm_default_report {
 		$from = 'FROM {user} u ';
 		$from .= 'LEFT JOIN {scorm_scoes_track} st ON st.userid = u.id AND st.scormid = '.$scorm->id;
 
+		$where = ' WHERE u.id ' .$usql;
+
 		// Fix some wired sorting
 		if (empty($sort)) {
 			$sort = ' ORDER BY uniqueid';
@@ -196,7 +199,7 @@ class scorm_download_scores_report extends scorm_default_report {
 
 		// Fetch the attempts
 		// gets uniqueid, scormid, attempt number, and all user fields. One row for each user-attempt
-		$attempts = $DB->get_records_sql($select.$from.$sort, $params);
+		$attempts = $DB->get_records_sql($select.$from.$where.$sort, $params);
 
 		$this->all_question_ids = array();
 
