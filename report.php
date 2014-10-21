@@ -34,9 +34,9 @@ class scorm_download_scores_report extends scorm_default_report {
 			get_string('totalscore', 'scormreport_download_scores'),
 			get_string('percentage', 'scormreport_download_scores')
 		);
-
-		for($n=1;$n<=$this->num_objectives;$n++) {
-			$this->headers[] = get_string('questionname','scormreport_download_scores',$n);
+	
+		foreach($this->all_question_ids as $id) {
+			$this->headers[] = get_string('objectivename','scormreport_download_scores',$id);
 		}
 
 	}
@@ -105,7 +105,9 @@ class scorm_download_scores_report extends scorm_default_report {
 			$csvexport->add_data($row);
 		}
 
-		$csvexport->download_file();
+		echo "<pre>";
+		$csvexport->print_csv_data();
+		echo "</pre>";
 	}
 
 	function display($scorm, $cm, $course, $download) {
@@ -115,18 +117,31 @@ class scorm_download_scores_report extends scorm_default_report {
 			echo $OUTPUT->single_button(new moodle_url($PAGE->url,array('download'=>'Excel')),get_string('downloadexcel'));
 			echo $OUTPUT->single_button(new moodle_url($PAGE->url,array('download'=>'CSV')),get_string('downloadcsv','scormreport_download_scores'));
 		} else {
-			$this->download($scorm,$cm,$course,$download);
+			$this->scorm = $scorm;
+			$this->download = $download;
+			$this->get_data($scorm,$cm,$course);
+			switch($download) {
+			case 'ODS':
+				$this->output_ODS();
+				break;
+			case 'Excel':
+				$this->output_Excel();
+				break;
+			case 'CSV':
+				$this->output_CSV();
+				break;
+			}
 		}
 	}
 
-	function download($scorm, $cm, $course, $download) {
+	function get_data($scorm, $cm, $course) {
 		global $DB, $OUTPUT;
 
 		$modulecontext = $this->modulecontext = context_module::instance($cm->id);
 		$coursecontext = $this->coursecontext = context_course::instance($course->id);
 
-		$max_element = $DB->get_record_sql('SELECT MAX(element) as max_element FROM {scorm_scoes_track} WHERE scormid = :scormid AND ELEMENT LIKE \'cmi.objectives.%.id\'',array('scormid'=>$scorm->id))->max_element;
-		$this->num_objectives = $this->get_objective_number($max_element)+1;
+		/// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		$this->num_objectives = 20;
 
 		// find out current groups mode
 		$currentgroup = groups_get_activity_group($cm, true);
@@ -181,70 +196,95 @@ class scorm_download_scores_report extends scorm_default_report {
 			$sort = ' ORDER BY '.$sort;
 		}
 
-		$this->define_headers();
-
 		// Fetch the attempts
 		// gets uniqueid, scormid, attempt number, and all user fields. One row for each user-attempt
 		$attempts = $DB->get_records_sql($select.$from.$sort, $params);
 
-		if ($attempts) {
-			$this->rows = array();
-			foreach ($attempts as $scouser) {
-				$row = array();
+		$this->all_question_ids = array();
 
-				$row[] = $scouser->username;
-
-				$row[] = fullname($scouser);
-
-				if (!empty($scouser->attempt)) {
-					$timetracks = scorm_get_sco_runtime($scorm->id, false, $scouser->userid, $scouser->attempt);
-				} else {
-					$timetracks = '';
-				}
-
-				if (!empty($timetracks->start)) {
-					$row[] = $scouser->attempt;
-
-					if ($download =='ODS' || $download =='Excel' ) {
-						$row[] = userdate($timetracks->start, get_string("strftimedatetime", "langconfig"));
-						$row[] = userdate($timetracks->finish, get_string('strftimedatetime', 'langconfig'));
-					} else {
-						$row[] = userdate($timetracks->start);
-						$row[] = userdate($timetracks->finish);
-					}
-
-					$row[] = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,false);
-
-					$percentage = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,true);
-
-					$row[] = number_format((float)$percentage*100, 2, '.', '');;
-
-					$objectives = array();
-					$objective_records = $DB->get_records_sql('SELECT element,value FROM {scorm_scoes_track} WHERE attempt = :attempt AND userid = :userid AND scormid = :scormid AND element LIKE \'cmi.objectives.%.score.raw\' ORDER BY element',array('attempt' => $scouser->attempt, 'userid' => $scouser->userid, 'scormid' => $scouser->scormid));
-					foreach($objective_records as $objective) {
-						$n = $this->get_objective_number($objective->element);
-						$objectives[$n] = $objective->value;
-					}
-					for($n=0;$n<$this->num_objectives;$n++) {
-						$row[] = @$objectives[$n] ?: 0;
-					}
-
-					$this->rows[] = $row;
-				}
-
-
-			}
+		if (!$attempts) {
+			return;
 		}
-		switch($download) {
-		case 'ODS':
-			$this->output_ODS();
-			break;
-		case 'Excel':
-			$this->output_Excel();
-			break;
-		case 'CSV':
-			$this->output_CSV();
-			break;
+
+		foreach ($attempts as $scouser) {
+			if (!empty($scouser->attempt)) {
+				$scouser->timetracks = scorm_get_sco_runtime($scorm->id, false, $scouser->userid, $scouser->attempt);
+			} else {
+				$scouser->timetracks = '';
+			}
+
+			if (!empty($scouser->timetracks->start)) {
+
+				$objective_id_records = $DB->get_records_sql('SELECT element,value FROM {scorm_scoes_track} WHERE attempt = :attempt AND userid = :userid AND scormid = :scormid AND element LIKE \'cmi.objectives.%.id\'',array('attempt' => $scouser->attempt, 'userid' => $scouser->userid, 'scormid' => $scouser->scormid));
+				$objective_ids = array();
+				foreach($objective_id_records as $objective) {
+					$n = $this->get_objective_number($objective->element);
+					$id = $objective->value;
+					$objective_ids[$n] = $id;
+					if(!in_array($id,$this->all_question_ids)) {
+						$this->all_question_ids[] = $id;
+					}
+				}
+
+				$objectives = array();
+				$objective_score_records = $DB->get_records_sql('SELECT element,value FROM {scorm_scoes_track} WHERE attempt = :attempt AND userid = :userid AND scormid = :scormid AND element LIKE \'cmi.objectives.%.score.raw\' ORDER BY element',array('attempt' => $scouser->attempt, 'userid' => $scouser->userid, 'scormid' => $scouser->scormid));
+				foreach($objective_score_records as $objective) {
+					$n = $this->get_objective_number($objective->element);
+					$id = $objective_ids[$n];
+					if(isset($objectives[$id])) {
+						$objectives[$id] = max($objectives[$id],$objective->value);
+					} else {
+						$objectives[$id] = $objective->value;
+					}
+				}
+				$scouser->objectives = $objectives;
+			}
+
+		}
+
+		ksort($this->all_question_ids);
+
+		$this->define_headers();
+		$this->rows = array();
+
+		foreach ($attempts as $scouser) {
+			$row = array();
+
+			$row[] = $scouser->username;
+
+			$row[] = fullname($scouser);
+
+			if (empty($scouser->timetracks->start)) {
+				$row += ['','','','',''];
+				foreach($this->all_question_ids as $id) {
+					$row[] = '';
+				}
+			} else {
+				$row[] = $scouser->attempt;
+
+				if ($this->download =='ODS' || $this->download =='Excel' ) {
+					$row[] = userdate($scouser->timetracks->start, get_string("strftimedatetime", "langconfig"));
+					$row[] = userdate($scouser->timetracks->finish, get_string('strftimedatetime', 'langconfig'));
+				} else {
+					$row[] = userdate($scouser->timetracks->start);
+					$row[] = userdate($scouser->timetracks->finish);
+				}
+
+				$row[] = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,false);
+
+				$percentage = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,true);
+				$row[] = number_format((float)$percentage*100, 2, '.', '');;
+
+				foreach($this->all_question_ids as $id) {
+					if(isset($scouser->objectives[$id])) {
+						$row[] = $scouser->objectives[$id];
+					} else {
+						$row[] = '';
+					}
+				}
+			}
+
+			$this->rows[] = $row;
 		}
 	}
 }

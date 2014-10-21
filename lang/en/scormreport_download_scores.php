@@ -25,5 +25,5 @@
 $string['pluginname'] = 'Download scores';
 $string['totalscore'] = 'Total score';
 $string['percentage'] = 'Percentage';
-$string['questionname'] = 'Question {$a}';
+$string['objectivename'] = 'Objective {$a}';
 $string['downloadcsv'] = 'Download in CSV format';
