@@ -11,5 +11,4 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->version  = 2014102100;
-$plugin->requires  = 2014101600;
 $plugin->component = 'scormreport_download_scores';
