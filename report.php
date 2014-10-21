@@ -97,7 +97,7 @@ class scorm_download_scores_report extends scorm_default_report {
 		require_once($CFG->libdir . '/csvlib.class.php');
 		$csvexport = new csv_export_writer("tab");
 		$csvexport->delimiter = ',';
-		$csvexport->set_filename($this->filename, ".txt");
+		$csvexport->set_filename($this->filename, ".csv");
 		$csvexport->add_data($this->headers);
 
 		//for each row
