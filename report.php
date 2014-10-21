@@ -105,9 +105,7 @@ class scorm_download_scores_report extends scorm_default_report {
 			$csvexport->add_data($row);
 		}
 
-		echo "<pre>";
-		$csvexport->print_csv_data();
-		echo "</pre>";
+		$csvexport->download_file();
 	}
 
 	function display($scorm, $cm, $course, $download) {
