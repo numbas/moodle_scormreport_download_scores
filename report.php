@@ -271,9 +271,9 @@ class scorm_download_scores_report extends scorm_default_report {
 					$row[] = userdate($scouser->timetracks->finish);
 				}
 
-				$row[] = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,false);
+				$row[] = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,false,true);
 
-				$percentage = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,true);
+				$percentage = scorm_grade_user_attempt($scorm, $scouser->userid, $scouser->attempt,true,true);
 				$row[] = number_format((float)$percentage*100, 2, '.', '');;
 
 				foreach($this->all_question_ids as $id) {
