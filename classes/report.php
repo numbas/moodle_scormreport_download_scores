@@ -9,7 +9,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-class scorm_download_scores_report extends scorm_default_report {
+class report extends mod_scorm\report {
 	/**
 	 * displays the full report
 	 * @param stdClass $scorm full SCORM object
